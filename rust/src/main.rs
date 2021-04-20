@@ -1,15 +1,26 @@
 use std::env;
 use std::fmt;
 use std::ops;
+use std::io;
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Copy)]
 enum Mark {
     X,
     O,
 }
 
-enum Player<'a> {
-    Player(&'a str),
+struct Player<'a> {
+    name: &'a str,
+    mark: Mark,
+}
+
+impl Player<'_> {
+    fn new(name: &str, mark: Mark) -> Player {
+        Player {
+            name,
+            mark,
+        }
+    }
 }
 
 type Cell = Option<Mark>;
@@ -38,7 +49,7 @@ impl Board {
         }
     }
 
-    fn place(&mut self, mark: Mark, x: usize, y: usize) {
+    fn place(&mut self, x: usize, y: usize, mark: Mark) {
         self.board[x][y] = Some(mark);
     }
 
@@ -96,73 +107,140 @@ struct State<'a> {
 fn main() {
     let x = env::args().nth(1).expect("Needs a horizontal size");
     let y = env::args().nth(2).expect("Needs a horizontal size");
-    let players = vec!["mig", "ham"];
+    let players = vec!["mig", "x", "ham", "o"];
     let (x, y) = (x.parse::<usize>().unwrap(), y.parse::<usize>().unwrap());
 
     let state = setup((x, y), players);
-    // run(state);
+    run(state);
 }
 
-fn setup((x, y): (usize, usize), players: Vec<&str>) -> State {
+fn setup((x, y): (usize, usize), mut players: Vec<&str>) -> State {
     let board = Board::new((x, y));
-    let players = players.iter().map(|p| Player::Player(p)).collect();
+    let mut iter_players = players.iter();
+    let mut players = Vec::new();
+    while let Some(p) = iter_players.next() {
+        let name = p;
+        let mark = match iter_players.next() {
+            Some(&"x") => Mark::X,
+            Some(&"o") => Mark::O,
+            _          => panic!("not a mark"),
+        };
+
+        players.push(Player::new(name, mark));
+    }
     State {
         board,
         players,
     }
 }
 
-// fn run(state: State) {
-    // let winner = None;
-    // while let None = winner {
-        // let player = state.players.pop();
-    // }
-// }
-
-fn has_winner(board: &Board) -> &Option<Mark> {
-
-    let get_winner_down = |x_range: ops::Range<usize>, y_range: ops::Range<usize>| -> &Option<Mark> {
-        for i in x_range {
-            let mut winner: &Option<Mark> = &None;
-            for j in y_range {
-                let cell = board.get(i, j);
-                match (winner, cell) {
-                    (None, Some(_))    => winner = cell,
-                    (Some(_), Some(_)) => continue,
-                    _ => {
-                            winner = &None;
-                            break;
-                         },
+fn run(state: State) {
+    let mut winner: Option<Player> = None;
+    let mut players = state.players;
+    let mut board = state.board;
+    while let None = winner {
+        // Stop if there is a winner
+        if let Some(m) = get_winner(&board) {
+            while let Some(player) = players.pop() {
+                if player.mark == *m {
+                    winner = Some(player);
+                    break;
                 }
             }
-            if winner.is_some() {
-                return &winner;
+        }
+
+        let player = players.remove(0);
+        board.render();
+        println!("It is {}'s turn, who is {}", player.name, player.mark);
+
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).unwrap();
+        let mut input = input.chars();
+
+        match input.next() {
+            Some('h') => println!("Help should be here"),
+            Some('p') => board.render(),
+            Some('m') => {
+                input.next();
+                let x = input.next().unwrap().to_digit(10).unwrap();
+                input.next();
+                let y = input.next().unwrap().to_digit(10).unwrap();
+
+                board.place(x as usize, y as usize, player.mark);
+                players.push(player);
+                continue;
+            }
+            _ => (),
+        }
+        players.insert(0, player);
+    }
+    let winner = winner.unwrap();
+    println!("The winner is: {}, who where: {}", winner.name, winner.mark);
+}
+
+fn get_winner(board: &Board) -> &Option<Mark> {
+    let (x, y) = board.size;
+    for i in 0..x {
+        let mut winner: &Option<Mark> = &None;
+        for j in 0..y {
+            let cell = board.get(i, j);
+            match (winner, cell) {
+                (None, Some(_))    => winner = cell,
+                (Some(_), Some(_)) => continue,
+                _ => {
+                        winner = &None;
+                        break;
+                     },
             }
         }
-        &None
-    };
+        if winner.is_some() {
+            return &winner;
+        }
 
-    let (x, y) = board.size;
+        for j in 0..y {
+            let cell = board.get(j, i);
+            match (winner, cell) {
+                (None, Some(_))    => winner = cell,
+                (Some(_), Some(_)) => continue,
+                _ => {
+                        winner = &None;
+                        break;
+                     },
+            }
+        }
+        if winner.is_some() {
+            return &winner;
+        }
 
-    let winner = get_winner_down(0..x, 0..y);
-    if let Some(_) = winner {
-        return &winner;
+        for _ in x..0 {
+            let cell = board.get(i, i);
+            match (winner, cell) {
+                (None, Some(_))    => winner = cell,
+                (Some(_), Some(_)) => continue,
+                _ => {
+                        winner = &None;
+                        break;
+                     },
+            }
+        }
+        if winner.is_some() {
+            return &winner;
+        }
+
+        for j in x-1..0 {
+            let cell = board.get(j, j);
+            match (winner, cell) {
+                (None, Some(_))    => winner = cell,
+                (Some(_), Some(_)) => continue,
+                _ => {
+                        winner = &None;
+                        break;
+                     },
+            }
+        }
+        if winner.is_some() {
+            return &winner;
+        }
     }
-
-    let winner = get_winner_down(0..y, 0..x);
-    if let Some(_) = winner {
-        return &winner;
-    }
-
-    let winner = get_winner_down(0..x, 0..x);
-    if let Some(_) = winner {
-        return &winner;
-    }
-
-    let winner = get_winner_down(x..0, x..0);
-    if let Some(_) = winner {
-        return &winner;
-    }
-
-    return &None
+    &None
 }
