@@ -1,1 +1,1 @@
-/home/anders/Documents/porg/rust/a/tic-tac-toe/target/debug/tic-tac-toe: /home/anders/Documents/porg/rust/a/tic-tac-toe/src/main.rs
+/home/anders/Documents/porg/tic-tac-toe/rust/target/debug/tic-tac-toe: /home/anders/Documents/porg/tic-tac-toe/rust/src/main.rs
