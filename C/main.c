@@ -19,11 +19,9 @@ enum side {
   Right,
 };
 
-void init_ncurse();
-Cursor init_board(WINDOW *board[SIZE][SIZE], int max_y, int max_x);
-void render_board(Cursor cursor, WINDOW *board[SIZE][SIZE], enum choice cells[SIZE][SIZE]);
-void set_cell(int row, int col, enum choice choice, enum choice cells[SIZE][SIZE]);
-enum choice get_winner(enum choice cells[SIZE][SIZE]);
+typedef struct ArrayWrapper {
+  enum choice arr[SIZE];
+} ArrayWrapper;
 
 void init_ncurse() {
   initscr();
@@ -38,14 +36,8 @@ void init_ncurse() {
 Cursor init_board(WINDOW *board[SIZE][SIZE], int max_y, int max_x) {
   for (int i = 0; i < SIZE; i++) {
     for (int j = 0; j < SIZE; j ++) {
-      /* WINDOW* cell = board[i][j]; */
-
       board[i][j] = newwin(3, 5, (max_y / 2) + (i * 3), (max_x / 2) + (j * 5));
       box(board[i][j], 0, 0);
-
-      // FIXME: Do not think these two lines are necessary
-      /* mvwaddch(board[i][j], 1, 2, cells[i][j]); */
-      /* wrefresh(board[i][j]); */
     }
   }
 
@@ -75,54 +67,71 @@ void set_cell(int row, int col, enum choice choice, enum choice cells[SIZE][SIZE
   cells[row][col] = choice;
 }
 
-// Make better
-enum choice get_winner(enum choice cells[SIZE][SIZE]) {
-
-  // First check the rows and see if they are all the same choice
-  int O_row_eq = 0;
-  int O_col_eq = 0;
-
-  int X_row_eq = 0;
-  int X_col_eq = 0;
-
+ArrayWrapper get_row(int row, enum choice cells[SIZE][SIZE]) {
+  ArrayWrapper ret;
   for (int i = 0; i < SIZE; i++) {
-    for (int j = 0; j < SIZE; j++) {
-      if (cells[i][j] == O) O_row_eq++;
-      if (cells[j][i] == O) O_col_eq++;
-      if (cells[i][j] == X) X_row_eq++;
-      if (cells[j][i] == X) X_col_eq++;
+    ret.arr[i] = cells[row][i];
+  }
+  return ret;
+}
+
+ArrayWrapper get_col(int col, enum choice cells[SIZE][SIZE]) {
+  ArrayWrapper ret;
+  for (int i = 0; i < SIZE; i++) {
+    ret.arr[i] = cells[i][col];
+  }
+  return ret;
+}
+
+ArrayWrapper get_cross(enum side side, enum choice cells[SIZE][SIZE]) {
+  ArrayWrapper ret;
+  if (side == Left) {
+    for (int i = 0; i < SIZE; i++) {
+      ret.arr[i] = cells[i][i];
     }
-
-    if (O_row_eq == SIZE) return O;
-    if (O_col_eq == SIZE) return O;
-    if (X_row_eq == SIZE) return X;
-    if (X_col_eq == SIZE) return X;
-
-    O_row_eq = 0;
-    O_col_eq = 0;
-    X_row_eq = 0;
-    X_col_eq = 0;
+  } else {
+    for (int i = 0; i < SIZE; i++) {
+      ret.arr[i] = cells[i][2 - i];
+    }
   }
+  return ret;
+}
 
-  // Afterwards check across the board and see if they are equal
-  int O_lcross_eq = 0;
-  int O_rcross_eq = 0;
-  int X_lcross_eq = 0;
-  int X_rcross_eq = 0;
+enum choice winner(ArrayWrapper arr) {
+  int o_eq = 0;
+  int x_eq = 0;
 
   for (int i = 0; i < SIZE; i++) {
-    if (cells[i][i] == O) O_lcross_eq++;
-    if (cells[i][2 - i] == O) O_rcross_eq++;
-    if (cells[i][i] == X) X_lcross_eq++;
-    if (cells[i][2 - i] == X) X_rcross_eq++;
+    if (arr.arr[i] == O) o_eq++;
+    if (arr.arr[i] == X) x_eq++;
   }
 
-  if (O_lcross_eq == SIZE) return O;
-  if (O_rcross_eq == SIZE) return O;
-  if (X_lcross_eq == SIZE) return X;
-  if (X_rcross_eq == SIZE) return X;
+  if (o_eq == 3) return O;
+  else if (x_eq == 3) return X;
+  else return Nothing;
+}
 
-  // In any other case return Nothing
+enum choice get_winner(enum choice cells[SIZE][SIZE]) {
+  for (int i = 0; i < SIZE; i++) {
+    ArrayWrapper row = get_row(i, cells);
+    ArrayWrapper col = get_row(i, cells);
+
+    enum choice row_win = winner(row);
+    enum choice col_win = winner(col);
+
+    if (row_win != Nothing) return row_win;
+    if (col_win != Nothing) return col_win;
+  }
+
+  ArrayWrapper left_side = get_cross(Left, cells);
+  ArrayWrapper right_side = get_cross(Right, cells);
+
+  enum choice left_win = winner(left_side);
+  enum choice right_win = winner(right_side);
+
+  if (left_win != Nothing) return left_win;
+  if (right_win != Nothing) return right_win;
+
   return Nothing;
 }
 
